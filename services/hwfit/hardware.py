@@ -360,6 +360,52 @@ def _detect_windows():
         return None
 
 
+def _detect_macos_gpu():
+    """Detect Apple Silicon GPU via system_profiler. Local-only (returns None for remote hosts)."""
+    if _remote_host or platform.system() != "Darwin":
+        return None
+    try:
+        import json as _json
+        import subprocess as _sp
+        out = _sp.check_output(
+            ["system_profiler", "SPDisplaysDataType", "-json"],
+            stderr=_sp.DEVNULL, timeout=10,
+        )
+        data = _json.loads(out)
+        displays = data.get("SPDisplaysDataType", [])
+        gpus = []
+        for d in displays:
+            name = d.get("sppci_model") or d.get("_name") or "Apple GPU"
+            vram_str = d.get("spdisplays_vram", "")
+            if not vram_str or "shared" in vram_str.lower():
+                # Unified memory — report full system RAM as GPU budget
+                pages = os.sysconf("SC_PHYS_PAGES")
+                page_size = os.sysconf("SC_PAGE_SIZE")
+                vram_mb = (pages * page_size) // (1024 * 1024)
+            else:
+                parts = vram_str.split()
+                num = int(parts[0])
+                unit = parts[1].upper() if len(parts) > 1 else "MB"
+                vram_mb = num * 1024 if unit.startswith("G") else num
+            gpus.append({"index": len(gpus), "name": name, "vram_mb": vram_mb, "vram_gb": round(vram_mb / 1024, 1)})
+        if not gpus:
+            return None
+        total_vram_gb = round(sum(g["vram_gb"] for g in gpus), 1)
+        return {
+            "has_gpu": True,
+            "gpu_name": gpus[0]["name"],
+            "gpu_vram_gb": total_vram_gb,
+            "gpu_count": len(gpus),
+            "gpus": gpus,
+            "gpu_groups": [{"name": gpus[0]["name"], "vram_each": gpus[0]["vram_gb"], "count": len(gpus), "indices": list(range(len(gpus))), "vram_total": total_vram_gb}],
+            "homogeneous": True,
+            "backend": "metal",
+            "unified_memory": True,
+        }
+    except Exception:
+        return None
+
+
 _cache_by_host = {}  # host -> (timestamp, result)
 
 
@@ -411,7 +457,7 @@ def detect_system(host="", ssh_port="", platform="", fresh=False):
     cpu_cores = _get_cpu_count()
     cpu_name = _get_cpu_name()
 
-    gpu_info = _detect_nvidia() or _detect_amd()
+    gpu_info = _detect_nvidia() or _detect_amd() or _detect_macos_gpu()
 
     if gpu_info:
         result = {
