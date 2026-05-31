@@ -19731,6 +19731,16 @@ body.gallery-selecting .gallery-dl-btn,
   background: color-mix(in srgb, var(--red) 15%, transparent);
   color: var(--red); font-weight: 600; font-size: 8px;
 }
+.hwfit-mlx {
+  display: inline-block; padding: 0 4px; border-radius: 4px; margin-left: 4px;
+  background: color-mix(in srgb, var(--accent, #8be9fd) 20%, transparent);
+  color: var(--accent, #8be9fd); font-weight: 700; font-size: 8px;
+}
+.hwfit-hw-chip-active {
+  background: color-mix(in srgb, var(--accent, #8be9fd) 25%, var(--panel)) !important;
+  color: var(--accent, #8be9fd) !important;
+  font-weight: 700;
+}
 .hwfit-sort, .hwfit-quant { width: auto; min-width: 70px; flex-shrink: 0; }
 .hwfit-row-active { background: color-mix(in srgb, var(--red) 8%, transparent); }
 

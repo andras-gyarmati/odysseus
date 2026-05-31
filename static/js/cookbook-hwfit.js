@@ -574,12 +574,28 @@ export function _hwfitRenderHw(el, sys) {
       + `<button type="button" class="hwfit-hw-chip-x" data-hw-chip="manual" title="Clear manual hardware" aria-label="Clear">×</button>`
       + `</span>`
     : '';
+  const isAppleSilicon = (sys.backend || '') === 'metal';
+  const mlxFilterBtn = isAppleSilicon
+    ? `<button type="button" id="hwfit-mlx-only-btn" class="hwfit-hw-chip hwfit-hw-chip-row${_mlxOnly ? ' hwfit-hw-chip-active' : ''}" title="Show only MLX-format models (Apple native)" style="cursor:pointer;border:none;">MLX only</button>`
+    : '';
+  const appleInfo = isAppleSilicon
+    ? `<div class="hwfit-apple-info" style="width:100%;margin-top:8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb,var(--panel) 80%,var(--accent,#8be9fd) 20%);font-size:12px;line-height:1.55;color:var(--fg-muted);">
+        <strong style="color:var(--fg)">Apple Silicon</strong> — GPU and CPU share the same unified memory pool.
+        The VRAM shown is your full system RAM available to Metal.<br>
+        <strong>MLX</strong> models run natively on Metal for best speed and efficiency.
+        <strong>GGUF</strong> via Ollama or llama.cpp also works and offers more model variety.
+        On-device memory (shown in VRAM column) includes weights + KV cache;
+        download size may be smaller and is shown as <span style="opacity:0.7">↓size</span> when it differs.
+      </div>`
+    : '';
   el.innerHTML = gpuChip
     + (vram ? chip('vram', vram) : '')
     + chip('ram', ram)
     + chip('cores', cores)
     + chip('backend', esc(sys.backend || ''))
-    + manualChip;
+    + manualChip
+    + mlxFilterBtn
+    + appleInfo;
   // Body click → toggle "off" (dimmed, still visible). Membership of
   // _dismissedHwChips is what the ranker reads, so both add+remove
   // here also flips the model list. The manual chip is excluded —
@@ -631,6 +647,16 @@ export function _hwfitRenderHw(el, sys) {
       _hwfitFetch(true);
     });
   });
+  // MLX-only filter toggle
+  const mlxBtn = document.getElementById('hwfit-mlx-only-btn');
+  if (mlxBtn) {
+    mlxBtn.addEventListener('click', () => {
+      _mlxOnly = !_mlxOnly;
+      mlxBtn.classList.toggle('hwfit-hw-chip-active', _mlxOnly);
+      const list = document.getElementById('hwfit-list');
+      if (list) _hwfitRenderList(list, _hwfitCache?.models || []);
+    });
+  }
   _wireManualHardwareControls(el);
 }
 
@@ -694,6 +720,9 @@ function _wireManualHardwareControls(el) {
 
 export const _fitColors = { perfect: 'var(--green, #50fa7b)', good: 'var(--yellow, #f1fa8c)', marginal: 'var(--orange, #ffb86c)', too_tight: 'var(--red, #ff5555)' };
 
+let _mlxOnly = false;
+export function _setMlxOnly(v) { _mlxOnly = v; }
+
 export const _hwfitColumns = [
   { key: 'score', label: 'Fit',    cls: 'hwfit-fit' },
   { key: null,    label: 'Model',  cls: 'hwfit-name' },
@@ -724,6 +753,7 @@ export function _hwfitRenderList(el, models) {
     el.innerHTML = `<div class="hwfit-loading">${msg}</div>`;
     return;
   }
+  if (_mlxOnly) models = models.filter(m => (m.quant || '').startsWith('mlx-'));
   const sortSel = document.getElementById('hwfit-sort');
   const currentSort = sortSel?.value || 'score';
   const isReversed = sortSel?.dataset.reverse === '1';
@@ -752,15 +782,20 @@ export function _hwfitRenderList(el, models) {
     const fitLabel = (m.fit_level || '').replace('_', ' ');
     const modeLabel = (m.run_mode || '').replace('_', '+');
     const vramLabel = m.required_gb ? m.required_gb.toFixed(1) + 'G' : '?';
+    const dlGb = m.download_gb;
+    const vramTitle = dlGb ? `On-device: ${m.required_gb?.toFixed(1) ?? '?'} GB | Download: ${dlGb.toFixed(1)} GB` : '';
+    const dlNote = (dlGb && m.required_gb && Math.abs(m.required_gb - dlGb) >= 0.5)
+      ? `<span style="font-size:10px;opacity:0.55;margin-left:2px">\u2193${dlGb.toFixed(1)}</span>` : '';
     const moeBadge = m.is_moe ? '<span class="hwfit-badge hwfit-moe">MoE</span>' : '';
     const imgBadge = m.is_image_gen ? '<span class="hwfit-badge" style="background:color-mix(in srgb, var(--red) 20%, transparent);color:var(--red);font-size:8px;padding:1px 4px;border-radius:3px;margin-left:4px;">IMG</span>' : '';
+    const mlxBadge = (m.quant || '').startsWith('mlx-') ? '<span class="hwfit-badge hwfit-mlx" title="Apple MLX format \u2014 runs natively on Metal">MLX</span>' : '';
     const dlDot = (_cachedModelIds && (_cachedModelIds.has(m.name) || [..._cachedModelIds].some(id => id === m.name?.split('/').pop()))) ? '<span class="hwfit-dl-dot" title="Downloaded">\u25CF</span>' : '';
     html += `<div class="hwfit-row" data-model="${esc(m.name)}">`;
     html += `<span class="hwfit-col hwfit-fit" style="color:${fitColor}">${esc(fitLabel)}</span>`;
     html += `<span class="hwfit-col hwfit-name">${modelLogo(m.name)}${esc(m.name?.split('/').pop() || m.name)}${moeBadge}${imgBadge}${dlDot}</span>`;
     html += `<span class="hwfit-col hwfit-c-params">${esc(pcount)}</span>`;
-    html += `<span class="hwfit-col hwfit-c-quant">${esc(m.quant || '?')}</span>`;
-    html += `<span class="hwfit-col hwfit-c-vram">${vramLabel}</span>`;
+    html += `<span class="hwfit-col hwfit-c-quant">${esc(m.quant || '?')}${mlxBadge}</span>`;
+    html += `<span class="hwfit-col hwfit-c-vram"${vramTitle ? ` title="${esc(vramTitle)}"` : ''}>${vramLabel}${dlNote}</span>`;
     html += `<span class="hwfit-col hwfit-c-ctx">${m.is_image_gen ? '\u2014' : ctx}</span>`;
     html += `<span class="hwfit-col hwfit-c-speed">${m.is_image_gen ? '\u2014' : tps + ' t/s'}</span>`;
     html += `<span class="hwfit-col hwfit-c-score">${score}</span>`;

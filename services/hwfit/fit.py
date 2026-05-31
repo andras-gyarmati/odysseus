@@ -283,6 +283,7 @@ def analyze_model(model, system, target_quant=None):
         # filtered out before the user could see what would fit. The
         # client already knows how to render too_tight (red row).
         oversized_required = estimate_memory_gb(model, quant_to_try, ctx)
+        _dl_bpp = QUANT_BYTES_PER_PARAM.get(quant_to_try, 0.5)
         return {
             "name": model.get("name"),
             "provider": model.get("provider"),
@@ -295,6 +296,7 @@ def analyze_model(model, system, target_quant=None):
             "quant": quant_to_try,
             "context": ctx,
             "required_gb": round(oversized_required, 1),
+            "download_gb": round(pb * _dl_bpp, 1),
             "speed_tps": 0,
             "score": 0,
             "scores": {"quality": 0, "speed": 0, "fit": 0, "context": 0},
@@ -331,6 +333,7 @@ def analyze_model(model, system, target_quant=None):
     wq, ws, wf, wc = USE_CASE_WEIGHTS.get(use_case, (0.45, 0.30, 0.15, 0.10))
     composite = q_score * wq + s_score * ws + f_score * wf + c_score * wc
 
+    _dl_bpp = QUANT_BYTES_PER_PARAM.get(quant, 0.5)
     return {
         "name": model.get("name"),
         "provider": model.get("provider"),
@@ -343,6 +346,7 @@ def analyze_model(model, system, target_quant=None):
         "quant": quant,
         "context": fit_ctx,
         "required_gb": round(required_gb, 1),
+        "download_gb": round(pb * _dl_bpp, 1),
         "speed_tps": round(tps, 1),
         "score": round(composite, 1),
         "scores": {
