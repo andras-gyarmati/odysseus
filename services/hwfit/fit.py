@@ -412,8 +412,12 @@ def rank_models(system, use_case=None, limit=50, search=None, sort="score", quan
             results.sort(key=sort_fn, reverse=(sort != "vram"))
             return results[:limit]
 
+    # "prequant" = show only models with a fixed author-published format (AWQ/GPTQ/FP8/MLX)
+    filter_prequant_only = quant == "prequant"
+    effective_quant = None if filter_prequant_only else quant
+
     # If user picked a prequantized format (AWQ/FP8/GPTQ), filter to only those models
-    filter_native = quant and any(quant.startswith(p) for p in ("AWQ-", "GPTQ-", "FP8"))
+    filter_native = effective_quant and any(effective_quant.startswith(p) for p in ("AWQ-", "GPTQ-", "FP8"))
 
     # MLX-quantized models only run on Apple Silicon (Metal). Exclude them on
     # every other backend (CUDA / ROCm / CPU) so Linux/Windows users don't see
@@ -426,6 +430,10 @@ def rank_models(system, use_case=None, limit=50, search=None, sort="score", quan
 
         # Drop MLX models on non-Apple hardware
         if not apple_silicon and native_q.startswith("mlx-"):
+            continue
+
+        # "Native" filter: only pre-quantized formats (AWQ/GPTQ/FP8/MLX)
+        if filter_prequant_only and not is_prequantized(m):
             continue
 
         # Format filter: AWQ tab → only AWQ models, FP8 tab → only FP8 models
@@ -443,7 +451,7 @@ def rank_models(system, use_case=None, limit=50, search=None, sort="score", quan
             if search.lower() not in name and search.lower() not in provider:
                 continue
 
-        result = analyze_model(m, system, target_quant=quant)
+        result = analyze_model(m, system, target_quant=effective_quant)
         if result is None:
             continue
 

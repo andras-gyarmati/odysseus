@@ -131,12 +131,12 @@ export function _renderGpuToggles(system) {
   }
   const validCounts = _validTpCounts(poolSize);
   const maxGpu = validCounts.length ? validCounts[validCounts.length - 1] : 0;
-  html += '<button class="hwfit-gpu-btn" data-count="0" title="CPU / RAM only">RAM</button>';
+  html += '<button class="hwfit-gpu-btn" data-count="0" title="Show models that fit in system RAM without GPU — useful for CPU-only inference or offloading layers when VRAM is too small">RAM</button>';
   const hasExplicitCount = typeof container._activeCount === 'number';
   for (const n of validCounts) {
     const text = n === 1 ? 'GPU' : n + ' GPU';
     const isActive = hasExplicitCount ? (n === container._activeCount) : (container._activeCount === undefined && n === maxGpu);
-    html += `<button class="hwfit-gpu-btn${isActive ? ' active' : ''}" data-count="${n}" title="${n} GPU${n > 1 ? 's' : ''}">${text}</button>`;
+    html += `<button class="hwfit-gpu-btn${isActive ? ' active' : ''}" data-count="${n}" title="Rank models that fit in ${n > 1 ? n + ' GPU' : 'GPU'} VRAM pool — active button sets how many GPUs the scoring assumes you'll use">${text}</button>`;
   }
   container.innerHTML = html;
 
@@ -581,19 +581,24 @@ export function _hwfitRenderHw(el, sys) {
     + chip('backend', esc(sys.backend || ''))
     + manualChip;
 
-  // Inject Apple Silicon panel + MLX filter as siblings of hwfit-hw-row, not inside chips
-  const hwRow = document.getElementById('hwfit-hw-row');
-  document.querySelectorAll('.hwfit-apple-extras').forEach(n => n.remove());
+  // Show Apple Silicon controls (MLX filter + info button) in the toolbar
   const isAppleSilicon = (sys.backend || '') === 'metal';
+  const mlxOnlyBtn = document.getElementById('hwfit-mlx-only-btn');
+  const appleInfoBtn = document.getElementById('hwfit-apple-info-btn');
+  if (mlxOnlyBtn) {
+    mlxOnlyBtn.style.display = isAppleSilicon ? '' : 'none';
+    mlxOnlyBtn.classList.toggle('active', _mlxOnly);
+  }
+  if (appleInfoBtn) {
+    appleInfoBtn.style.display = isAppleSilicon ? '' : 'none';
+  }
+  // Inject info panel below hwfit-hw-row (hidden by default, toggled by ℹ button)
+  document.querySelectorAll('.hwfit-apple-extras').forEach(n => n.remove());
   if (isAppleSilicon && hwRow) {
     const extras = document.createElement('div');
     extras.className = 'hwfit-apple-extras';
-    extras.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:6px;';
-    extras.innerHTML = `
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button type="button" id="hwfit-mlx-only-btn" class="hwfit-mlx-filter-btn${_mlxOnly ? ' active' : ''}" title="Show only MLX-format models (Apple native)">MLX only</button>
-      </div>
-      <div class="hwfit-apple-info">
+    extras.style.cssText = 'margin-top:6px;';
+    extras.innerHTML = `<div class="hwfit-apple-info" id="hwfit-apple-info-panel" style="display:none;">
         <strong>Apple Silicon</strong> — GPU and CPU share the same unified memory pool.
         The VRAM column shows on-device RAM (weights + KV cache); hover a cell to see the download size separately.<br>
         <strong>MLX</strong> models run natively on Metal for best speed and efficiency.
@@ -651,13 +656,6 @@ export function _hwfitRenderHw(el, sys) {
       _hwfitCache = null;
       _hwfitFetch(true);
     });
-  });
-  // MLX-only filter toggle (button is outside el, in .hwfit-apple-extras)
-  document.getElementById('hwfit-mlx-only-btn')?.addEventListener('click', function() {
-    _mlxOnly = !_mlxOnly;
-    this.classList.toggle('active', _mlxOnly);
-    const list = document.getElementById('hwfit-list');
-    if (list) _hwfitRenderList(list, _hwfitCache?.models || []);
   });
   _wireManualHardwareControls(el);
 }
@@ -1113,6 +1111,30 @@ export function _hwfitInit() {
     clearTimeout(_hwfitDebounce);
     _hwfitDebounce = setTimeout(() => _hwfitFetch(), 400);
   });
+
+  // MLX filter and Apple info — wired once with dataset.bound guard
+  const mlxOnlyBtn = document.getElementById('hwfit-mlx-only-btn');
+  if (mlxOnlyBtn && !mlxOnlyBtn.dataset.bound) {
+    mlxOnlyBtn.dataset.bound = '1';
+    mlxOnlyBtn.addEventListener('click', function() {
+      _mlxOnly = !_mlxOnly;
+      this.classList.toggle('active', _mlxOnly);
+      const list = document.getElementById('hwfit-list');
+      if (list) _hwfitRenderList(list, _hwfitCache?.models || []);
+    });
+  }
+  const appleInfoBtn = document.getElementById('hwfit-apple-info-btn');
+  if (appleInfoBtn && !appleInfoBtn.dataset.bound) {
+    appleInfoBtn.dataset.bound = '1';
+    appleInfoBtn.addEventListener('click', function() {
+      const panel = document.getElementById('hwfit-apple-info-panel');
+      if (!panel) return;
+      const visible = panel.style.display !== 'none';
+      panel.style.display = visible ? 'none' : '';
+      this.classList.toggle('active', !visible);
+    });
+  }
+
   // HF Token
   const hfToken = document.getElementById('hwfit-hftoken');
   if (hfToken) {

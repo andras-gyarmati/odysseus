@@ -1399,7 +1399,8 @@ function _renderRecipes() {
   html += '<option value="Q6_K">Q6</option><option value="Q5_K_M">Q5</option>';
   html += '<option value="Q3_K_M">Q3</option><option value="Q2_K">Q2</option>';
   html += '<option value="AWQ-4bit">AWQ</option><option value="FP8">FP8</option>';
-  html += '<option value="">Native</option></select>';
+  html += '<option value="prequant" title="Only show pre-quantized models (AWQ, GPTQ, FP8, MLX) — formats published by model authors at a fixed bit-width">Native</option>';
+  html += '<option value="">All</option></select>';
   html += '</div>';
   html += '<div class="hwfit-toolbar" style="margin-top:7px;">';
   html += '<select class="cookbook-field-input hwfit-server-select" id="hwfit-server-select" style="height:28px;min-width:88px;position:relative;top:0px;">';
@@ -1409,6 +1410,8 @@ function _renderRecipes() {
   // Scan/refresh button (icon-only) where the quant dropdown used to sit.
   html += '<button type="button" class="hwfit-gpu-btn" id="hwfit-rescan" title="Re-scan hardware" style="flex-shrink:0;position:relative;top:-3px;left:-1px;">↻ RESCAN</button>';
   html += '<button type="button" class="hwfit-gpu-btn hwfit-hw-manual-btn" id="hwfit-hw-manual-btn" title="Set hardware manually" style="flex-shrink:0;position:relative;top:-3px;left:-1px;">EDIT</button>';
+  html += '<button type="button" class="hwfit-gpu-btn" id="hwfit-mlx-only-btn" title="Show only MLX-format models (Apple Silicon native)" style="display:none;flex-shrink:0;position:relative;top:-3px;left:-1px;">MLX</button>';
+  html += '<button type="button" class="hwfit-gpu-btn" id="hwfit-apple-info-btn" title="Apple Silicon info" style="display:none;flex-shrink:0;position:relative;top:-3px;left:-1px;">ℹ</button>';
   html += '<select class="cookbook-field-input hwfit-sort" id="hwfit-sort" style="display:none">';
   html += '<option value="score">Score</option><option value="vram">VRAM</option>';
   html += '<option value="speed">Speed</option><option value="params">Params</option>';
