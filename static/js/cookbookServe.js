@@ -381,11 +381,15 @@ function _rerenderCachedModels() {
       let panelHtml = `<div class="hwfit-serve-panel">${_slotsHtml}`;
       // Row 1: Backend + Server + Env
       panelHtml += `<div class="hwfit-serve-row">`;
+      const _isMlxModel = (m.quant || '').toLowerCase().startsWith('mlx-');
       const _backendChoices = _isWindows()
         ? [['llamacpp','llama.cpp']]
         : _isMetal()
         // Diffusers (diffusion_server.py) is CUDA-only — omit it on Metal.
-        ? [['llamacpp','llama.cpp'],['ollama','Ollama']]
+        // MLX models: mlx_lm is the native engine (llama.cpp can't load MLX format).
+        ? (_isMlxModel
+          ? [['mlx_lm','mlx_lm'],['ollama','Ollama']]
+          : [['llamacpp','llama.cpp'],['ollama','Ollama']])
         : [['vllm','vLLM'],['sglang','SGLang'],['llamacpp','llama.cpp'],['diffusers','Diffusers']];
       const backendOpts = _backendChoices.map(([v,l]) => `<option value="${v}"${defaultBackend===v?' selected':''}>${l}</option>`).join('');
       panelHtml += `<label>${_l('Backend','Inference engine: vLLM, SGLang, llama.cpp, or Diffusers')}<select class="hwfit-sf" data-field="backend">${backendOpts}</select></label>`;
@@ -403,7 +407,7 @@ function _rerenderCachedModels() {
       panelHtml += `<label>${_l('GPUs','Toggle which GPUs to use')}<div class="cookbook-gpu-group">${_gpuBtnsHtml}</div><input type="hidden" class="hwfit-sf" data-field="gpus" value="${esc(defaultGpus)}" /></label>`;
       panelHtml += `</div>`;
       // Row 2: Core settings
-      panelHtml += `<div class="hwfit-serve-row hwfit-backend-vllm hwfit-backend-sglang hwfit-backend-llamacpp">`;
+      panelHtml += `<div class="hwfit-serve-row hwfit-backend-vllm hwfit-backend-sglang hwfit-backend-llamacpp hwfit-backend-mlx_lm">`;
       panelHtml += `<label class="hwfit-backend-vllm hwfit-backend-sglang">${_l('TP','Tensor Parallelism — split model across N GPUs')}<select class="hwfit-sf" data-field="tp">${tpOpts}</select></label>`;
       panelHtml += `<label>${_l('Context','Max tokens per request. Lower = less VRAM')}<input type="text" class="hwfit-sf" data-field="ctx" value="${esc(sv('ctx', '8192'))}" /></label>`;
       panelHtml += `<label>${_l('GPU','Which GPU to use. Leave empty for default')}<input type="text" class="hwfit-sf" data-field="gpu_id" value="${esc(sv('gpu_id', ''))}" placeholder="auto" style="width:50px;" /></label>`;
@@ -423,7 +427,7 @@ function _rerenderCachedModels() {
       panelHtml += `<label>Height${_h('Default output height')} <input type="text" class="hwfit-sf" data-field="diff_height" value="${esc(sv('diff_height', ''))}" placeholder="1024" /></label>`;
       panelHtml += `</div>`;
       // Row 3: Checkboxes (vLLM)
-      panelHtml += `<div class="hwfit-serve-checks hwfit-backend-vllm hwfit-backend-sglang">`;
+      panelHtml += `<div class="hwfit-serve-checks hwfit-backend-vllm hwfit-backend-sglang hwfit-backend-mlx_lm">`;
       panelHtml += `<label class="hwfit-sf-cb"><input type="checkbox" class="hwfit-sf" data-field="enforce_eager"${sv('enforce_eager',false)?' checked':''} /> Enforce Eager${_h('Disable CUDA graphs. Slower but uses less memory')}</label>`;
       panelHtml += `<label class="hwfit-sf-cb"><input type="checkbox" class="hwfit-sf" data-field="trust_remote"${sv('trust_remote',false)?' checked':''} /> Trust Remote Code${_h('Allow model to run custom code from HuggingFace')}</label>`;
       panelHtml += `<label class="hwfit-sf-cb"><input type="checkbox" class="hwfit-sf" data-field="prefix_cache"${sv('prefix_cache',false)?' checked':''} /> Prefix Caching${_h('Cache shared prompt prefixes across requests')}</label>`;

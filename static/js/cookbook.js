@@ -259,10 +259,12 @@ export function _detectBackend(model) {
     return { backend: 'llamacpp', label: 'llama.cpp' };
   }
 
-  // Apple Silicon (Metal) → llama.cpp (GGUF). vLLM/SGLang are CUDA/ROCm-only and
-  // don't run on macOS; AWQ/GPTQ/FP8 (vLLM-only) models are already filtered out
-  // of metal Cookbook results, so llama.cpp is always the right engine here.
+  // Apple Silicon (Metal): MLX-quantized models → mlx_lm; everything else → llama.cpp.
+  // vLLM/SGLang are CUDA/ROCm-only and don't run on macOS.
   if (['metal', 'mps', 'apple'].includes(sysBackend)) {
+    if ((model.quant || '').toLowerCase().startsWith('mlx-')) {
+      return { backend: 'mlx_lm', label: 'mlx_lm' };
+    }
     return { backend: 'llamacpp', label: 'llama.cpp' };
   }
 
@@ -412,6 +414,13 @@ export function _buildServeCmd(f, modelName, backend) {
     const hostEnv = ollamaPort !== '11434' ? `OLLAMA_HOST=0.0.0.0:${ollamaPort} ` : '';
     // Start serve in background if not running, then pull model
     cmd = `${hostEnv}ollama serve &>/dev/null & sleep 2 && ${hostEnv}ollama pull ${ollamaName} && wait`;
+  } else if (backend === 'mlx_lm') {
+    // MLX-quantized models on Apple Silicon — mlx_lm loads directly from the HF
+    // repo ID (no .gguf path resolution needed). Default max-tokens raised from
+    // mlx_lm's 512 to 4096 for usability.
+    cmd = `python3 -m mlx_lm.server --model ${modelName} --host 0.0.0.0 --port ${f.port || '8080'} --max-tokens 4096`;
+    if (f.ctx) cmd += ` --max-kv-cache-size ${f.ctx}`;
+    if (f.trust_remote) cmd += ' --trust-remote-code';
   } else if (backend === 'diffusers') {
     const gpuStr = f.gpus?.trim();
     if (gpuStr) cmd += `CUDA_VISIBLE_DEVICES=${gpuStr} `;
