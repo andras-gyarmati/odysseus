@@ -442,14 +442,12 @@ def rank_models(system, use_case=None, limit=50, search=None, sort="score", quan
         if native_q.startswith("mlx-") and not apple_silicon:
             continue
 
-        # On Apple Silicon the only serving engines are llama.cpp and Ollama,
-        # both GGUF-only (vLLM/SGLang are CUDA/ROCm and don't run on macOS). So
-        # a model is Metal-servable ONLY if it ships a real GGUF. Drop everything
-        # else — raw safetensors repos (which the catalog still tags with a
-        # default GGUF quant) and vLLM-only AWQ/GPTQ/FP8 builds alike. Without
-        # this the Cookbook recommends models the Mac can't run; on CUDA these
+        # On Apple Silicon: llama.cpp/Ollama serve GGUF; mlx_lm serves MLX-
+        # quantized models natively. Drop everything else — raw safetensors repos
+        # and vLLM-only AWQ/GPTQ/FP8 builds can't run on Metal. On CUDA these
         # stay visible because vLLM serves safetensors directly.
-        if apple_silicon and not (m.get("is_gguf") or m.get("gguf_sources")):
+        is_mlx = native_q.startswith("mlx-")
+        if apple_silicon and not is_mlx and not (m.get("is_gguf") or m.get("gguf_sources")):
             continue
 
         # "Native" filter: only pre-quantized formats (AWQ/GPTQ/FP8/MLX)
