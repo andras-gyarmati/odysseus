@@ -1026,6 +1026,14 @@ def setup_cookbook_routes() -> APIRouter:
                 runner_lines.append('  echo "Starting ollama server..."; (ollama serve >/dev/null 2>&1 &)')
                 runner_lines.append('  for _ in 1 2 3 4 5 6 7 8 9 10; do curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && break; sleep 1; done')
                 runner_lines.append('fi')
+            elif "mlx_lm.server" in req.cmd:
+                # mlx-lm is a pip package — no source build needed. Auto-install
+                # if missing. Only reachable on Apple Silicon (Metal backend).
+                runner_lines.append('export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"')
+                runner_lines.append('if ! python3 -c "import mlx_lm" 2>/dev/null; then')
+                runner_lines.append('  echo "mlx-lm not found — installing..."')
+                runner_lines.append('  python3 -m pip install --quiet mlx-lm')
+                runner_lines.append('fi')
             elif "vllm serve" in req.cmd:
                 # vLLM is CUDA/ROCm-only and does not run on macOS at all.
                 runner_lines.append('if [ "$(uname -s)" = "Darwin" ]; then')
