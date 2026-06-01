@@ -261,8 +261,11 @@ export function _detectBackend(model) {
 
   // Apple Silicon (Metal): MLX-quantized models → mlx_lm; everything else → llama.cpp.
   // vLLM/SGLang are CUDA/ROCm-only and don't run on macOS.
+  // Detect MLX by quant field (hwfit results) OR repo_id/name (cached model list
+  // — those objects have no quant field, only repo_id like "org/Name-MLX-4bit").
   if (['metal', 'mps', 'apple'].includes(sysBackend)) {
-    if ((model.quant || '').toLowerCase().startsWith('mlx-')) {
+    const _repoHint = `${model.repo_id || ''} ${model.name || ''}`;
+    if ((model.quant || '').toLowerCase().startsWith('mlx-') || /\bmlx\b/i.test(_repoHint)) {
       return { backend: 'mlx_lm', label: 'mlx_lm' };
     }
     return { backend: 'llamacpp', label: 'llama.cpp' };
@@ -1328,6 +1331,27 @@ export function _serverEntryHtml(s, i, defaultServer, forceRemote, isNew) {
   return html;
 }
 
+function _renderNotifLog() {
+  const logEl = document.getElementById('cookbook-notif-log');
+  if (!logEl) return;
+  const log = uiModule.getNotifLog();
+  if (!log.length) {
+    logEl.innerHTML = '<span style="opacity:0.4;font-size:11px;">No messages yet.</span>';
+    return;
+  }
+  const esc = uiModule.esc;
+  logEl.innerHTML = log.map(n => {
+    const d = new Date(n.ts);
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const color = n.isError ? 'var(--red,#ff5555)' : 'var(--fg)';
+    const prefix = n.isError ? '✕ ' : '· ';
+    return `<div style="display:flex;gap:6px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--border,rgba(255,255,255,.07));">
+      <span style="color:var(--fg);opacity:0.4;white-space:nowrap;font-size:10px;">${esc(time)}</span>
+      <span style="color:${color};">${prefix}${esc(n.msg)}</span>
+    </div>`;
+  }).join('');
+}
+
 function _renderRecipes() {
   const body = document.querySelector('#cookbook-modal .cookbook-body');
   if (!body) return;
@@ -1556,6 +1580,16 @@ function _renderRecipes() {
   html += `</div>`;
   html += '</div>';
 
+  // ── Recent Messages block ────────────────────────────────────────────
+  html += '<div class="admin-card" id="cookbook-notif-card" style="flex:0 0 auto;display:flex;flex-direction:column;">';
+  html += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px;">';
+  html += '<h2 style="margin:0;padding:0;line-height:1;">Recent Messages</h2>';
+  html += '<button type="button" id="cookbook-notif-clear" style="margin-left:auto;font-size:11px;padding:2px 8px;border:1px solid var(--border,rgba(255,255,255,.12));border-radius:4px;background:none;color:var(--fg);opacity:0.6;cursor:pointer;">Clear</button>';
+  html += '</div>';
+  html += '<p class="memory-desc doclib-desc">Errors and status messages from this session.</p>';
+  html += '<div id="cookbook-notif-log" style="max-height:220px;overflow-y:auto;font-size:12px;display:flex;flex-direction:column;gap:4px;margin-top:4px;"></div>';
+  html += '</div>';
+
   html += '</div></div>';
 
   body.innerHTML = html;
@@ -1564,6 +1598,21 @@ function _renderRecipes() {
   // Auto-init What Fits
   _hwfitInit();
   _hwfitFetch();
+
+  // Wire notification log in Settings tab
+  _renderNotifLog();
+  const _notifClearBtn = body.querySelector('#cookbook-notif-clear');
+  if (_notifClearBtn) {
+    _notifClearBtn.addEventListener('click', () => {
+      uiModule.clearNotifLog();
+      _renderNotifLog();
+    });
+  }
+  // Live-update when new notifications arrive while Settings tab is open
+  if (!body._notifBound) {
+    body._notifBound = true;
+    window.addEventListener('odysseus:notif', () => _renderNotifLog());
+  }
 }
 
 // ── Public API ──

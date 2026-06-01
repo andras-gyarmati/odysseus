@@ -381,7 +381,10 @@ function _rerenderCachedModels() {
       let panelHtml = `<div class="hwfit-serve-panel">${_slotsHtml}`;
       // Row 1: Backend + Server + Env
       panelHtml += `<div class="hwfit-serve-row">`;
-      const _isMlxModel = (m.quant || '').toLowerCase().startsWith('mlx-');
+      // Cached model objects from /api/model/cached have no `quant` field —
+      // detect MLX from the repo_id (e.g. "lmstudio-community/LFM2.5-VL-1.6B-MLX-4bit").
+      const _isMlxModel = (m.quant || '').toLowerCase().startsWith('mlx-')
+        || /\bmlx\b/i.test(m.repo_id || '');
       const _backendChoices = _isWindows()
         ? [['llamacpp','llama.cpp']]
         : _isMetal()

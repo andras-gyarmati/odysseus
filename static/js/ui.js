@@ -8,6 +8,20 @@ import themeModule from './theme.js';
 import * as Modals from './modalManager.js';
 
 let toastEl = null;
+
+// Notification log — last 50 messages (errors + toasts), newest first.
+const _notifLog = [];
+const _NOTIF_MAX = 50;
+function _logNotif(msg, isError) {
+  _notifLog.unshift({ msg, isError, ts: Date.now() });
+  if (_notifLog.length > _NOTIF_MAX) _notifLog.length = _NOTIF_MAX;
+  // Fire a custom event so any open log panel can update live.
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('odysseus:notif', { detail: { msg, isError } }));
+  }
+}
+export function getNotifLog() { return [..._notifLog]; }
+export function clearNotifLog() { _notifLog.length = 0; }
 let autoScrollEnabled = true;
 let hoveredToggleCard = null;
 let hoveredToggleWindow = null;
@@ -234,7 +248,7 @@ export function showToast(msg, durationOrOpts) {
   toastEl.textContent = '';
   toastEl.classList.remove('error');
 
-  let duration = 1200, actionLabel = null, onAction = null, actionHint = null, actionIcon = null, leadingIcon = null;
+  let duration = 4000, actionLabel = null, onAction = null, actionHint = null, actionIcon = null, leadingIcon = null;
   if (typeof durationOrOpts === 'object' && durationOrOpts) {
     duration = durationOrOpts.duration || 5000;
     actionLabel = durationOrOpts.action;
@@ -317,9 +331,28 @@ export function showToast(msg, durationOrOpts) {
 
     toastEl.style.pointerEvents = 'auto';
   } else {
-    // No action — restore the default non-blocking behavior.
-    toastEl.style.pointerEvents = '';
+    // No action — add a plain × dismiss button so users can clear toasts
+    // manually (especially useful for longer error/info messages).
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', 'Dismiss');
+    closeBtn.title = 'Dismiss';
+    closeBtn.textContent = '×';
+    closeBtn.style.cssText = 'margin-left:8px;padding:0;width:20px;height:20px;line-height:1;border:none;background:none;color:var(--fg);opacity:0.45;cursor:pointer;font-size:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;pointer-events:auto;';
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.45'; });
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      clearTimeout(toastEl._hideTimer);
+      toastEl.classList.add('exiting');
+      toastEl.classList.remove('show');
+    });
+    toastEl.appendChild(closeBtn);
+    toastEl.style.pointerEvents = 'auto';
   }
+
+  _logNotif(msg, false);
 
   // Pin to top-right via CSS — clear any legacy inline overrides so the
   // slide-in-from-right / slide-out-to-left transition can run cleanly.
@@ -351,8 +384,32 @@ export function showError(msg) {
     toastEl = document.getElementById('toast');
   }
   _wireToastSwipe(toastEl);
-  toastEl.textContent = msg;
+  toastEl.textContent = '';
   toastEl.classList.add('error');
+
+  const textSpan = document.createElement('span');
+  textSpan.textContent = msg;
+  toastEl.appendChild(textSpan);
+
+  // × dismiss button on errors — these messages are important and often long.
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', 'Dismiss');
+  closeBtn.title = 'Dismiss';
+  closeBtn.textContent = '×';
+  closeBtn.style.cssText = 'margin-left:8px;padding:0;width:20px;height:20px;line-height:1;border:none;background:none;color:var(--fg);opacity:0.55;cursor:pointer;font-size:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;pointer-events:auto;';
+  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
+  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.55'; });
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    clearTimeout(toastEl._hideTimer);
+    toastEl.classList.add('exiting');
+    toastEl.classList.remove('show');
+  });
+  toastEl.appendChild(closeBtn);
+  toastEl.style.pointerEvents = 'auto';
+
   toastEl.style.left = '';
   toastEl.style.transform = '';
   toastEl.classList.remove('exiting');
@@ -361,7 +418,10 @@ export function showError(msg) {
   toastEl._hideTimer = setTimeout(() => {
     toastEl.classList.add('exiting');
     toastEl.classList.remove('show');
-  }, 3000);
+    toastEl.style.pointerEvents = '';
+  }, 8000);
+
+  _logNotif(msg, true);
 }
 
 /**
@@ -736,6 +796,8 @@ const uiModule = {
   copyToClipboard,
   showToast,
   showError,
+  getNotifLog,
+  clearNotifLog,
   styledConfirm,
   styledPrompt,
   scrollHistory,
