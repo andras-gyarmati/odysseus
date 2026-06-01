@@ -143,6 +143,7 @@ _SERVE_CMD_ALLOWLIST = {
     "python", "python3",
     "sglang", "lmdeploy",
     "node", "npx",
+    "mlx_lm", "mlx_lm.server",
 }
 
 
