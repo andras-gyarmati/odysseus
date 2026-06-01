@@ -2,6 +2,9 @@ services:
   odysseus:
     build: .
     ports:
+      # ODYSSEUS_BIND: host port to expose the UI on. Defaults to 7001 instead of
+      # 7000 because macOS AirPlay Receiver occupies 7000 by default, causing a
+      # silent bind conflict on Mac hosts. Override in .env: ODYSSEUS_BIND=7000
       - "${ODYSSEUS_BIND:-7001}:7000"
     volumes:
       - ./data:/app/data
